@@ -7,12 +7,11 @@ const axios = require("axios");
 const app = express();
 app.use(bodyParser.json());
 
-// Environment Variables (Render-এর সেটিংস থেকে এগুলো সেট করতে হবে)
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
 const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// ১. Webhook Verification (Facebook Messenger-এর সাথে কানেক্ট করার জন্য)
+// ১. Webhook Verification
 app.get("/webhook", (req, res) => {
   let mode = req.query["hub.mode"];
   let token = req.query["hub.verify_token"];
@@ -42,11 +41,13 @@ app.post("/webhook", async (req, res) => {
           let userMessage = event.message.text;
           console.log(`Received message: ${userMessage}`);
 
-          // FAQ Shortcut (ঐচ্ছিক)
-          if (userMessage.toLowerCase().includes("price")) {
-            sendMessage(senderId, "আমাদের প্রোডাক্টের দাম ৫০০ টাকা।");
+          // Lightweight AI Logic: প্রথমে লোকাল চেক করবে
+          const localReply = getLightweightResponse(userMessage);
+
+          if (localReply) {
+            sendMessage(senderId, localReply);
           } else {
-            // Gemini AI থেকে উত্তর আনা
+            // যদি লোকাল রিপ্লাই না থাকে, তবে Gemini AI ব্যবহার করবে
             const aiReply = await getGeminiResponse(userMessage);
             sendMessage(senderId, aiReply);
           }
@@ -59,7 +60,30 @@ app.post("/webhook", async (req, res) => {
   }
 });
 
-// ৩. রিপ্লাই পাঠানোর ফাংশন
+// ৩. Lightweight local AI Logic (Built-in)
+function getLightweightResponse(message) {
+  const msg = message.toLowerCase();
+
+  // Keyword Matching
+  const knowledgeBase = {
+    "hi": "হ্যালো! আমি আপনাকে কীভাবে সাহায্য করতে পারি?",
+    "hello": "নমস্কার! কোনো প্রশ্ন থাকলে করতে পারেন।",
+    "কেমন আছো": "আমি ভালো আছি, ধন্যবাদ! আপনি কেমন আছেন?",
+    "price": "আমাদের পণ্যের দাম ৫০০ টাকা।",
+    "অর্ডার": "অর্ডার করতে আপনার নাম এবং মোবাইল নম্বর দিন।",
+    "ধন্যবাদ": "আপনাকেও অনেক ধন্যবাদ!",
+    "সময়": `এখন সময়: ${new Date().toLocaleTimeString('bn-BD')}`
+  };
+
+  for (let key in knowledgeBase) {
+    if (msg.includes(key)) {
+      return knowledgeBase[key];
+    }
+  }
+  return null; // কোনো মিল না পেলে null পাঠাবে
+}
+
+// ৪. রিপ্লাই পাঠানোর ফাংশন
 function sendMessage(senderId, responseText) {
   let requestBody = {
     recipient: { id: senderId },
@@ -72,45 +96,35 @@ function sendMessage(senderId, responseText) {
     method: "POST",
     json: requestBody
   }, (err, res, body) => {
-    if (!err) {
-      console.log("Message sent to user!");
-    } else {
+    if (err) {
       console.error("Unable to send message:" + err);
     }
   });
 }
 
-// ৪. Gemini AI API কল করার ফাংশন (Fix for 401/402 Error)
+// ৫. Gemini AI API
 async function getGeminiResponse(userMessage) {
   try {
-    // মডেলের নাম 'gemini-1.5-flash' এর বদলে 'gemini-1.5-flash-latest' অথবা 'gemini-pro' দিন
-    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`;
+    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
     const response = await axios.post(
       url,
       {
         contents: [{ parts: [{ text: userMessage }] }]
       },
-      {
-        headers: { "Content-Type": "application/json" }
-      }
+      { headers: { "Content-Type": "application/json" } }
     );
 
     if (response.data && response.data.candidates && response.data.candidates[0].content) {
       return response.data.candidates[0].content.parts[0].text;
     } else {
-      return "দুঃখিত, আমি কোনো উত্তর খুঁজে পাইনি।";
+      return "দুঃখিত, আমি বিষয়টি বুঝতে পারছি না।";
     }
 
   } catch (error) {
-    if (error.response) {
-      console.error("Gemini API Error:", error.response.data);
-    } else {
-      console.error("System Error:", error.message);
-    }
-    return "দুঃখিত, সার্ভারে কিছুটা সমস্যা হচ্ছে। পরে চেষ্টা করুন।";
+    console.error("Gemini Error:", error.message);
+    return "সার্ভারে সমস্যা হচ্ছে, অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।";
   }
 }
 
-// সার্ভার চালু করা
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Messenger Gemini bot is live on port ${PORT}`));
