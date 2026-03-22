@@ -9,6 +9,7 @@ app.use(bodyParser.json());
 
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
 const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 // Webhook verification
 app.get("/webhook", (req, res) => {
@@ -83,7 +84,7 @@ async function getAIResponse(userMessage) {
       messages: [{ role: "user", content: userMessage }]
     }, {
       headers: {
-        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Authorization": `Bearer ${OPENAI_API_KEY}`,
         "Content-Type": "application/json"
       }
     });
@@ -95,4 +96,5 @@ async function getAIResponse(userMessage) {
   }
 }
 
-app.listen(3000, () => console.log("Messenger AI bot server running on port 3000"));
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Messenger AI bot server running on port ${PORT}`));
