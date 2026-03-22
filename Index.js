@@ -83,8 +83,8 @@ function sendMessage(senderId, responseText) {
 // ৪. Gemini AI API কল করার ফাংশন (Fix for 401/402 Error)
 async function getGeminiResponse(userMessage) {
   try {
-    // API Key সরাসরি URL-এ যোগ করা হয়েছে
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    // মডেলের নাম 'gemini-1.5-flash' এর বদলে 'gemini-1.5-flash-latest' অথবা 'gemini-pro' দিন
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
 
     const response = await axios.post(
       url,
@@ -96,16 +96,14 @@ async function getGeminiResponse(userMessage) {
       }
     );
 
-    // AI-এর উত্তরটি ডাটা থেকে খুঁজে বের করা
     if (response.data && response.data.candidates && response.data.candidates[0].content) {
       return response.data.candidates[0].content.parts[0].text;
     } else {
-      return "দুঃখিত, আমি এই মুহূর্তে কোনো উত্তর দিতে পারছি না।";
+      return "দুঃখিত, আমি কোনো উত্তর খুঁজে পাইনি।";
     }
 
   } catch (error) {
     if (error.response) {
-      // API থেকে কোনো এরর আসলে সেটি কনসোলে প্রিন্ট হবে
       console.error("Gemini API Error:", error.response.data);
     } else {
       console.error("System Error:", error.message);
