@@ -80,7 +80,7 @@ function sendMessage(senderId, responseText) {
 async function getHFResponse(userMessage) {
   try {
     const response = await axios.post(
-      "https://api-inference.huggingface.co/models/facebook/blenderbot-400M-distill",
+      "https://api-inference.huggingface.co/models/microsoft/DialoGPT-medium",
       { inputs: userMessage },
       {
         headers: {
@@ -100,6 +100,7 @@ async function getHFResponse(userMessage) {
     return "সার্ভার ব্যস্ত আছে, একটু পরে চেষ্টা করুন।";
   }
 }
+
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Messenger HF bot server running on port ${PORT}`));
