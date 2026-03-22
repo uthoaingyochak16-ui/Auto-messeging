@@ -1,14 +1,13 @@
 services:
   - type: web
-    name: messenger-ai-bot
-    env: node
+    name: messenger-hf-bot
+    env: docker
     plan: free
-    buildCommand: "npm install"
-    startCommand: "npm start"
+    dockerfilePath: ./Dockerfile
     envVars:
       - key: PAGE_ACCESS_TOKEN
         sync: false
       - key: VERIFY_TOKEN
         sync: false
-      - key: OPENAI_API_KEY
+      - key: HF_API_KEY
         sync: false
