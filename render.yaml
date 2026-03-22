@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: messenger-ai-bot
+    name: messenger-gemini-bot
     env: docker
     plan: free
     dockerfilePath: ./Dockerfile
@@ -9,7 +9,5 @@ services:
         sync: false
       - key: VERIFY_TOKEN
         sync: false
-      - key: HF_API_KEY
-        sync: false
-      - key: DEEPSEEK_API_KEY
+      - key: GEMINI_API_KEY
         sync: false
