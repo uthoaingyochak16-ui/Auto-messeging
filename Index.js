@@ -32,6 +32,9 @@ app.post("/webhook", async (req, res) => {
   let body = req.body;
 
   if (body.object === "page") {
+    // ফেসবুককে সাথে সাথে জানিয়ে দিন যে ইভেন্ট পেয়েছেন
+    res.status(200).send("EVENT_RECEIVED"); 
+
     body.entry.forEach(async function(entry) {
       if (entry.messaging && entry.messaging[0]) {
         let event = entry.messaging[0];
@@ -39,22 +42,13 @@ app.post("/webhook", async (req, res) => {
 
         if (event.message && event.message.text) {
           let userMessage = event.message.text;
-          console.log(`Received message: ${userMessage}`);
-
-          // Lightweight AI Logic: প্রথমে লোকাল চেক করবে
-          const localReply = getLightweightResponse(userMessage);
-
-          if (localReply) {
-            sendMessage(senderId, localReply);
-          } else {
-            // যদি লোকাল রিপ্লাই না থাকে, তবে Gemini AI ব্যবহার করবে
-            const aiReply = await getGeminiResponse(userMessage);
-            sendMessage(senderId, aiReply);
-          }
+          
+          // এখানে AI কল করুন
+          const aiReply = await getGeminiResponse(userMessage);
+          sendMessage(senderId, aiReply);
         }
       }
     });
-    res.status(200).send("EVENT_RECEIVED");
   } else {
     res.sendStatus(404);
   }
