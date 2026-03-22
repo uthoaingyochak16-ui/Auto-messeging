@@ -1,0 +1,29 @@
+{
+  "name": "auto-messeging",
+  "version": "1.0.0",
+  "description": "",
+  "main": "Index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node Index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/uthoaingyochak16-ui/Auto-messeging.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/uthoaingyochak16-ui/Auto-messeging/issues"
+  },
+  "homepage": "https://github.com/uthoaingyochak16-ui/Auto-messeging#readme",
+  "dependencies": {
+    "axios": "^1.13.6",
+    "body-parser": "^2.2.2",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "request": "^2.88.2"
+  }
+}
