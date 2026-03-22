@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: messenger-ai-bot
+    env: node
+    plan: free
+    buildCommand: "npm install"
+    startCommand: "npm start"
+    envVars:
+      - key: PAGE_ACCESS_TOKEN
+        sync: false
+      - key: VERIFY_TOKEN
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
