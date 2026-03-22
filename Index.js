@@ -1,15 +1,17 @@
 require("dotenv").config();
 const express = require("express");
 const bodyParser = require("body-parser");
-const request = require("request");
 const axios = require("axios");
+const Groq = require("groq-sdk");
 
 const app = express();
 app.use(bodyParser.json());
 
+// Groq Initialize
+const groq = new Groq({ apiKey: "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" });
+
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
 const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 // ১. Webhook Verification
 app.get("/webhook", (req, res) => {
@@ -17,13 +19,10 @@ app.get("/webhook", (req, res) => {
   let token = req.query["hub.verify_token"];
   let challenge = req.query["hub.challenge"];
 
-  if (mode && token) {
-    if (mode === "subscribe" && token === VERIFY_TOKEN) {
-      console.log("Webhook verified successfully!");
-      res.status(200).send(challenge);
-    } else {
-      res.sendStatus(403);
-    }
+  if (mode && token === VERIFY_TOKEN) {
+    res.status(200).send(challenge);
+  } else {
+    res.sendStatus(403);
   }
 });
 
@@ -32,8 +31,8 @@ app.post("/webhook", async (req, res) => {
   let body = req.body;
 
   if (body.object === "page") {
-    // ফেসবুককে সাথে সাথে জানিয়ে দিন যে ইভেন্ট পেয়েছেন
-    res.status(200).send("EVENT_RECEIVED"); 
+    // ফেসবুককে দ্রুত রেসপন্স পাঠানো
+    res.status(200).send("EVENT_RECEIVED");
 
     body.entry.forEach(async function(entry) {
       if (entry.messaging && entry.messaging[0]) {
@@ -42,104 +41,57 @@ app.post("/webhook", async (req, res) => {
 
         if (event.message && event.message.text) {
           let userMessage = event.message.text;
-          
-          // এখানে AI কল করুন
-          const aiReply = await getGeminiResponse(userMessage);
+          console.log(`User says: ${userMessage}`);
+
+          // Groq AI থেকে উত্তর আনা
+          const aiReply = await getGroqResponse(userMessage);
           sendMessage(senderId, aiReply);
         }
       }
     });
-  } else {
-    res.sendStatus(404);
   }
 });
 
-// ৩. Lightweight local AI Logic (Built-in)
-function getLightweightResponse(message) {
-  const msg = message.toLowerCase();
-
-  // Keyword Matching
-  const knowledgeBase = {
-    "hi": "হ্যালো! আমি আপনাকে কীভাবে সাহায্য করতে পারি?",
-    "hello": "নমস্কার! কোনো প্রশ্ন থাকলে করতে পারেন।",
-    "কেমন আছো": "আমি ভালো আছি, ধন্যবাদ! আপনি কেমন আছেন?",
-    "price": "আমাদের পণ্যের দাম ৫০০ টাকা।",
-    "অর্ডার": "অর্ডার করতে আপনার নাম এবং মোবাইল নম্বর দিন।",
-    "ধন্যবাদ": "আপনাকেও অনেক ধন্যবাদ!",
-    "সময়": `এখন সময়: ${new Date().toLocaleTimeString('bn-BD')}`
-  };
-
-  for (let key in knowledgeBase) {
-    if (msg.includes(key)) {
-      return knowledgeBase[key];
-    }
-  }
-  return null; // কোনো মিল না পেলে null পাঠাবে
-}
-
-// ৪. রিপ্লাই পাঠানোর ফাংশন
-function sendMessage(senderId, responseText) {
-  let requestBody = {
-    recipient: { id: senderId },
-    message: { text: responseText }
-  };
-
-  request({
-    uri: "https://graph.facebook.com/v12.0/me/messages",
-    qs: { access_token: PAGE_ACCESS_TOKEN },
-    method: "POST",
-    json: requestBody
-  }, (err, res, body) => {
-    if (err) {
-      console.error("Unable to send message:" + err);
-    }
-  });
-}
-
-// ৫. Gemini AI API
-async function getGeminiResponse(userMessage) {
+// ৩. Groq AI API কল করার ফাংশন (Super Fast)
+async function getGroqResponse(userMessage) {
   try {
-    // আপনার লিস্টে এই মডেলটি 'Stable' হিসেবে আছে, এটি ব্যবহার করুন
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent?key=${GEMINI_API_KEY}`;
-    
-    const response = await axios.post(
-      url,
-      {
-        contents: [{ parts: [{ text: userMessage }] }],
-        safetySettings: [
-          { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-        ],
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 1000,
+    const chatCompletion = await groq.chat.completions.create({
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are a helpful AI assistant for a Facebook page. Keep your answers concise and friendly in Bengali or English as per user demand."
+        },
+        {
+          "role": "user",
+          "content": userMessage
         }
-      },
-      { headers: { "Content-Type": "application/json" } }
-    );
+      ],
+      "model": "llama-3.3-70b-versatile", // ল্যামা ৩.৩ বর্তমানে গ্রোকে খুব ভালো কাজ করে
+      "temperature": 0.7,
+      "max_tokens": 1024,
+      "top_p": 1,
+      "stream": false
+    });
 
-    if (response.data && response.data.candidates && response.data.candidates[0].content) {
-      return response.data.candidates[0].content.parts[0].text;
-    } else {
-      return "দুঃখিত, আমি এই মুহূর্তে উত্তর দিতে পারছি না।";
-    }
-
+    return chatCompletion.choices[0].message.content;
   } catch (error) {
-    // এখানে এরর চেক করার জন্য বিস্তারিত লগ দেওয়া হলো
-    if (error.response) {
-      console.error("Status Code:", error.response.status);
-      console.error("Error Message:", JSON.stringify(error.response.data, null, 2));
-      
-      // যদি ২.০ কাজ না করে, তবে 'gemini-flash-latest' ট্রাই করতে পারেন
-      if (error.response.status === 404) {
-        return "মডেলটি আপনার অ্যাকাউন্টে সচল নয়। দয়া করে gemini-flash-latest ব্যবহার করুন।";
-      }
-    }
-    return "সার্ভারে কিছুটা সমস্যা হচ্ছে। কিছুক্ষণ পর আবার চেষ্টা করুন।";
+    console.error("Groq API Error:", error.message);
+    return "দুঃখিত, এআই সার্ভারে কিছুটা সমস্যা হচ্ছে। কিছুক্ষণ পর আবার চেষ্টা করুন।";
+  }
+}
+
+// ৪. রিপ্লাই পাঠানোর ফাংশন (Axios ব্যবহার করে)
+async function sendMessage(senderId, responseText) {
+  try {
+    await axios.post(`https://graph.facebook.com/v12.0/me/messages?access_token=${PAGE_ACCESS_TOKEN}`, {
+      recipient: { id: senderId },
+      message: { text: responseText }
+    });
+    console.log("Message sent via Groq!");
+  } catch (err) {
+    console.error("Facebook Send Error:", err.response ? err.response.data : err.message);
   }
 }
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Messenger Gemini bot is live on port ${PORT}`));
+app.listen(PORT, () => console.log(`Groq Messenger Bot is running on port ${PORT}`));
