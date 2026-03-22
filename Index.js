@@ -84,8 +84,7 @@ function sendMessage(senderId, responseText) {
 async function getGeminiResponse(userMessage) {
   try {
     // মডেলের নাম 'gemini-1.5-flash' এর বদলে 'gemini-1.5-flash-latest' অথবা 'gemini-pro' দিন
-    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-
+    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`;
     const response = await axios.post(
       url,
       {

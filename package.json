@@ -20,6 +20,7 @@
   },
   "homepage": "https://github.com/uthoaingyochak16-ui/Auto-messeging#readme",
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "axios": "^1.13.6",
     "body-parser": "^2.2.2",
     "dotenv": "^17.3.1",
