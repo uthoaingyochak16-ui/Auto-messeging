@@ -99,27 +99,22 @@ function sendMessage(senderId, responseText) {
 // ৫. Gemini AI API
 async function getGeminiResponse(userMessage) {
   try {
-    // ১. স্ট্যাবল মডেল ইউআরএল (v1beta)
-    // Gemini 3.1 Flash Lite (সবচেয়ে লেটেস্ট এবং ফাস্ট)
-const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${GEMINI_API_KEY}`;
+    // আপনার লিস্টে এই মডেলটি 'Stable' হিসেবে আছে, এটি ব্যবহার করুন
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent?key=${GEMINI_API_KEY}`;
     
     const response = await axios.post(
       url,
       {
         contents: [{ parts: [{ text: userMessage }] }],
-        // ২. সেফটি সেটিংস (যাতে উত্তর ব্লক না হয়)
         safetySettings: [
           { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
           { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
           { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
           { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
         ],
-        // ৩. কনফিগারেশন (উত্তরের ধরন ঠিক রাখতে)
         generationConfig: {
           temperature: 0.7,
-          topK: 40,
-          topP: 0.95,
-          maxOutputTokens: 1024, // খুব বড় উত্তর দিয়ে কোটা শেষ করবে না
+          maxOutputTokens: 1000,
         }
       },
       { headers: { "Content-Type": "application/json" } }
@@ -128,16 +123,21 @@ const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-
     if (response.data && response.data.candidates && response.data.candidates[0].content) {
       return response.data.candidates[0].content.parts[0].text;
     } else {
-      return "দুঃখিত, আমি এই মুহূর্তে উত্তরটি তৈরি করতে পারছি না।";
+      return "দুঃখিত, আমি এই মুহূর্তে উত্তর দিতে পারছি না।";
     }
 
   } catch (error) {
-    if (error.response && error.response.status === 429) {
-      console.error("Rate Limit Exceeded (429)");
-      return "আমি এখন একটু ব্যস্ত (লিমিট শেষ), দয়া করে ১ মিনিট পর আবার মেসেজ দিন।";
+    // এখানে এরর চেক করার জন্য বিস্তারিত লগ দেওয়া হলো
+    if (error.response) {
+      console.error("Status Code:", error.response.status);
+      console.error("Error Message:", JSON.stringify(error.response.data, null, 2));
+      
+      // যদি ২.০ কাজ না করে, তবে 'gemini-flash-latest' ট্রাই করতে পারেন
+      if (error.response.status === 404) {
+        return "মডেলটি আপনার অ্যাকাউন্টে সচল নয়। দয়া করে gemini-flash-latest ব্যবহার করুন।";
+      }
     }
-    console.error("Gemini Error:", error.response ? error.response.data : error.message);
-    return "দুঃখিত, সার্ভারে কিছুটা সমস্যা হচ্ছে। পরে চেষ্টা করুন।";
+    return "সার্ভারে কিছুটা সমস্যা হচ্ছে। কিছুক্ষণ পর আবার চেষ্টা করুন।";
   }
 }
 
