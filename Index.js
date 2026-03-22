@@ -99,32 +99,44 @@ function sendMessage(senderId, responseText) {
 // ৫. Gemini AI API
 async function getGeminiResponse(userMessage) {
   try {
-    // স্ক্রিনশট অনুযায়ী আপনি Gemini 2.5 Flash ব্যবহার করতে পারবেন
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    // ১. স্ট্যাবল মডেল ইউআরএল (v1beta)
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
     
     const response = await axios.post(
       url,
       {
-        contents: [{ parts: [{ text: userMessage }] }]
+        contents: [{ parts: [{ text: userMessage }] }],
+        // ২. সেফটি সেটিংস (যাতে উত্তর ব্লক না হয়)
+        safetySettings: [
+          { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+          { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+          { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+          { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+        ],
+        // ৩. কনফিগারেশন (উত্তরের ধরন ঠিক রাখতে)
+        generationConfig: {
+          temperature: 0.7,
+          topK: 40,
+          topP: 0.95,
+          maxOutputTokens: 1024, // খুব বড় উত্তর দিয়ে কোটা শেষ করবে না
+        }
       },
-      {
-        headers: { "Content-Type": "application/json" }
-      }
+      { headers: { "Content-Type": "application/json" } }
     );
 
     if (response.data && response.data.candidates && response.data.candidates[0].content) {
       return response.data.candidates[0].content.parts[0].text;
     } else {
-      return "দুঃখিত, কোনো উত্তর জেনারেট করা সম্ভব হয়নি।";
+      return "দুঃখিত, আমি এই মুহূর্তে উত্তরটি তৈরি করতে পারছি না।";
     }
 
   } catch (error) {
-    if (error.response) {
-      console.error("Gemini API Error Detail:", JSON.stringify(error.response.data, null, 2));
-    } else {
-      console.error("System Error:", error.message);
+    if (error.response && error.response.status === 429) {
+      console.error("Rate Limit Exceeded (429)");
+      return "আমি এখন একটু ব্যস্ত (লিমিট শেষ), দয়া করে ১ মিনিট পর আবার মেসেজ দিন।";
     }
-    return "সার্ভারে কিছুটা সমস্যা হচ্ছে। দয়া করে কিছুক্ষণ পর আবার চেষ্টা করুন।";
+    console.error("Gemini Error:", error.response ? error.response.data : error.message);
+    return "দুঃখিত, সার্ভারে কিছুটা সমস্যা হচ্ছে। পরে চেষ্টা করুন।";
   }
 }
 
