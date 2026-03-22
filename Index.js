@@ -1,14 +1,12 @@
 require("dotenv").config();
 const express = require("express");
 const axios = require("axios");
-const Groq = require("groq-sdk");
 
 const app = express();
 app.use(express.json());
 
-// Groq ক্লায়েন্ট ইনিশিয়ালাইজেশন (সিকিউর পদ্ধতি)
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-
+// Environment Variables
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
 
@@ -30,65 +28,61 @@ app.post("/webhook", async (req, res) => {
     let body = req.body;
 
     if (body.object === "page") {
-        // ফেসবুককে দ্রুত ২০০ রেসপন্স পাঠানো যাতে ডুপ্লিকেট মেসেজ না আসে
         res.status(200).send("EVENT_RECEIVED");
 
         body.entry.forEach(async (entry) => {
-            let webhook_event = entry.messaging[0];
-            let sender_psid = webhook_event.sender.id;
+            if (entry.messaging && entry.messaging[0]) {
+                let event = entry.messaging[0];
+                let senderId = event.sender.id;
 
-            if (webhook_event.message && webhook_event.message.text) {
-                const userMessage = webhook_event.message.text;
-                
-                // Groq AI থেকে রেসপন্স জেনারেট করা
-                const aiResponse = await getGroqAIResponse(userMessage);
-                
-                // ফেসবুকে রিপ্লাই পাঠানো
-                await sendFBMessage(sender_psid, aiResponse);
+                if (event.message && event.message.text) {
+                    const userMsg = event.message.text;
+                    const aiReply = await getGroqResponse(userMsg);
+                    await sendFBMessage(senderId, aiReply);
+                }
             }
         });
-    } else {
-        res.sendStatus(404);
     }
 });
 
-// ৩. Groq AI কল করার ফাংশন
-async function getGroqAIResponse(message) {
+// ৩. Groq API Call (Axios দিয়ে সরাসরি)
+async function getGroqResponse(message) {
     try {
-        const completion = await groq.chat.completions.create({
-            messages: [
-                { 
-                    role: "system", 
-                    content: "You are a helpful assistant for a CUET student's project. Answer clearly in Bengali or English." 
-                },
-                { role: "user", content: message }
-            ],
-            model: "llama-3.3-70b-versatile", // আপনার ফ্রি টায়ারের জন্য সেরা মডেল
-            temperature: 0.7,
-            max_tokens: 1024,
-        });
-
-        return completion.choices[0].message.content;
+        const response = await axios.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            {
+                model: "llama-3.3-70b-versatile",
+                messages: [
+                    { role: "system", content: "You are a helpful assistant." },
+                    { role: "user", content: message }
+                ]
+            },
+            {
+                headers: {
+                    "Authorization": `Bearer ${GROQ_API_KEY}`,
+                    "Content-Type": "application/json"
+                }
+            }
+        );
+        return response.data.choices[0].message.content;
     } catch (error) {
-        if (error.status === 429) {
-            return "আমি এই মুহূর্তে অনেক বেশি মেসেজ পাচ্ছি। ১ মিনিট পর চেষ্টা করুন।";
-        }
-        console.error("Groq API Error:", error.message);
-        return "দুঃখিত, বর্তমানে এআই সার্ভারে কিছুটা সমস্যা হচ্ছে।";
+        console.error("Groq Error:", error.response ? error.response.data : error.message);
+        return "সার্ভারে কিছুটা সমস্যা হচ্ছে। দয়া করে কিছুক্ষণ পর আবার চেষ্টা করুন।";
     }
 }
 
-// ৪. ফেসবুক মেসেজ পাঠানোর ফাংশন
-async function sendFBMessage(psid, responseText) {
+// ৪. ফেসবুক মেসেজ পাঠানো
+async function sendFBMessage(senderId, text) {
     try {
         await axios.post(`https://graph.facebook.com/v17.0/me/messages?access_token=${PAGE_ACCESS_TOKEN}`, {
-            recipient: { id: psid },
-            message: { text: responseText }
+            recipient: { id: senderId },
+            message: { text: text }
         });
     } catch (error) {
-        console.error("FB Send Error:", error.response ? error.response.data : error.message);
+        console.error("FB Error:", error.response ? error.response.data : error.message);
     }
 }
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
+// Render-এর জন্য PORT 10000 বাইন্ডিং জরুরি
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, '0.0.0.0', () => console.log(`Server is live on port ${PORT}`));
