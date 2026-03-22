@@ -91,10 +91,14 @@ async function getAIResponse(userMessage) {
 
     return response.data.choices[0].message.content;
   } catch (error) {
-    console.error("AI error:", error);
+    if (error.response && error.response.status === 429) {
+      return "সার্ভার ব্যস্ত আছে, একটু পরে চেষ্টা করুন।";
+    }
+    console.error("AI error:", error.message);
     return "দুঃখিত, আমি এখন উত্তর দিতে পারছি না।";
   }
 }
+
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Messenger AI bot server running on port ${PORT}`));
