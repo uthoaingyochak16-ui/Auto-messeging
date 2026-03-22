@@ -95,7 +95,7 @@ async function getGeminiResponse(userMessage) {
     return response.data.candidates[0].content.parts[0].text;
   } catch (error) {
     console.error("Gemini error:", error.message);
-    return "দুঃখিত, আমি এখন উত্তর দিতে পারছি না।";
+    return "দুঃখিত, আমি এখন উত্তর  দিতে পারছি না।";
   }
 }
 
