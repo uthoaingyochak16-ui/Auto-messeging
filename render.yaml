@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: messenger-hf-bot
+    name: messenger-ai-bot
     env: docker
     plan: free
     dockerfilePath: ./Dockerfile
@@ -10,4 +10,6 @@ services:
       - key: VERIFY_TOKEN
         sync: false
       - key: HF_API_KEY
+        sync: false
+      - key: DEEPSEEK_API_KEY
         sync: false
