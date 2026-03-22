@@ -100,7 +100,8 @@ function sendMessage(senderId, responseText) {
 async function getGeminiResponse(userMessage) {
   try {
     // ১. স্ট্যাবল মডেল ইউআরএল (v1beta)
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    // Gemini 3.1 Flash Lite (সবচেয়ে লেটেস্ট এবং ফাস্ট)
+const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${GEMINI_API_KEY}`;
     
     const response = await axios.post(
       url,
