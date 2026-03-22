@@ -9,7 +9,7 @@ app.use(bodyParser.json());
 
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
 const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const HF_API_KEY = process.env.HF_API_KEY;
 
 // Webhook verification
 app.get("/webhook", (req, res) => {
@@ -43,8 +43,8 @@ app.post("/webhook", async (req, res) => {
         if (userMessage.toLowerCase().includes("price")) {
           sendMessage(senderId, "আমাদের প্রোডাক্টের দাম 500 টাকা।");
         } else {
-          // Step 2: AI response
-          const aiReply = await getAIResponse(userMessage);
+          // Step 2: Hugging Face AI response
+          const aiReply = await getHFResponse(userMessage);
           sendMessage(senderId, aiReply);
         }
       }
@@ -76,29 +76,30 @@ function sendMessage(senderId, responseText) {
   });
 }
 
-// Function to get AI response
-async function getAIResponse(userMessage) {
+// Function to get Hugging Face AI response
+async function getHFResponse(userMessage) {
   try {
-    const response = await axios.post("https://api.openai.com/v1/chat/completions", {
-      model: "gpt-3.5-turbo",
-      messages: [{ role: "user", content: userMessage }]
-    }, {
-      headers: {
-        "Authorization": `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json"
+    const response = await axios.post(
+      "https://api-inference.huggingface.co/models/facebook/blenderbot-400M-distill",
+      { inputs: userMessage },
+      {
+        headers: {
+          Authorization: `Bearer ${HF_API_KEY}`,
+          "Content-Type": "application/json"
+        }
       }
-    });
+    );
 
-    return response.data.choices[0].message.content;
-  } catch (error) {
-    if (error.response && error.response.status === 429) {
-      return "সার্ভার ব্যস্ত আছে, একটু পরে চেষ্টা করুন।";
+    if (response.data && response.data.length > 0) {
+      return response.data[0].generated_text;
+    } else {
+      return "দুঃখিত, আমি এখন উত্তর দিতে পারছি না।";
     }
-    console.error("AI error:", error.message);
-    return "দুঃখিত, আমি এখন উত্তর দিতে পারছি না।";
+  } catch (error) {
+    console.error("HF error:", error.message);
+    return "সার্ভার ব্যস্ত আছে, একটু পরে চেষ্টা করুন।";
   }
 }
 
-
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Messenger AI bot server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`Messenger HF bot server running on port ${PORT}`));
