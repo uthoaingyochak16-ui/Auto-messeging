@@ -76,28 +76,30 @@ function sendMessage(senderId, responseText) {
 }
 
 // Function to get Hugging Face AI response
-async function getDeepSeekResponse(userMessage) {
+async function getHFResponse(userMessage) {
   try {
     const response = await axios.post(
-      "https://api.deepseek.com/v1/chat/completions",
-      {
-        model: "deepseek-chat",
-        messages: [{ role: "user", content: userMessage }]
-      },
+      "https://api-inference.huggingface.co/models/microsoft/DialoGPT-medium",
+      { inputs: userMessage },
       {
         headers: {
-          Authorization: `Bearer ${process.env.DEEPSEEK_API_KEY}`,
+          Authorization: `Bearer ${process.env.HF_API_KEY}`,
           "Content-Type": "application/json"
         }
       }
     );
 
-    return response.data.choices[0].message.content;
+    if (response.data && response.data.length > 0) {
+      return response.data[0].generated_text;
+    } else {
+      return "দুঃখিত, আমি এখন উত্তর দিতে পারছি না।";
+    }
   } catch (error) {
-    console.error("DeepSeek error:", error.message);
+    console.error("HF error:", error.message);
     return "সার্ভার ব্যস্ত আছে, একটু পরে চেষ্টা করুন।";
   }
 }
+
 
 
 
