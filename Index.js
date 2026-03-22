@@ -105,24 +105,32 @@ function sendMessage(senderId, responseText) {
 // ৫. Gemini AI API
 async function getGeminiResponse(userMessage) {
   try {
-    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    // স্ক্রিনশট অনুযায়ী আপনি Gemini 2.5 Flash ব্যবহার করতে পারবেন
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    
     const response = await axios.post(
       url,
       {
         contents: [{ parts: [{ text: userMessage }] }]
       },
-      { headers: { "Content-Type": "application/json" } }
+      {
+        headers: { "Content-Type": "application/json" }
+      }
     );
 
     if (response.data && response.data.candidates && response.data.candidates[0].content) {
       return response.data.candidates[0].content.parts[0].text;
     } else {
-      return "দুঃখিত, আমি বিষয়টি বুঝতে পারছি না।";
+      return "দুঃখিত, কোনো উত্তর জেনারেট করা সম্ভব হয়নি।";
     }
 
   } catch (error) {
-    console.error("Gemini Error:", error.message);
-    return "সার্ভারে সমস্যা হচ্ছে, অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।";
+    if (error.response) {
+      console.error("Gemini API Error Detail:", JSON.stringify(error.response.data, null, 2));
+    } else {
+      console.error("System Error:", error.message);
+    }
+    return "সার্ভারে কিছুটা সমস্যা হচ্ছে। দয়া করে কিছুক্ষণ পর আবার চেষ্টা করুন।";
   }
 }
 
