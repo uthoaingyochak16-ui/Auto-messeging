@@ -1,88 +1,102 @@
 require("dotenv").config();
 const express = require("express");
-const axios = require("axios");
 
 const app = express();
 app.use(express.json());
 
-// Environment Variables
-const GROQ_API_KEY = process.env.GROQ_API_KEY;
-const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
-const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
+const { GROQ_API_KEY, PAGE_ACCESS_TOKEN, VERIFY_TOKEN, APPS_SCRIPT_URL } = process.env;
 
-// ১. ফেসবুক ওয়েবহুক ভেরিফিকেশন
-app.get("/webhook", (req, res) => {
-    let mode = req.query["hub.mode"];
-    let token = req.query["hub.verify_token"];
-    let challenge = req.query["hub.challenge"];
-
-    if (mode && token === VERIFY_TOKEN) {
-        res.status(200).send(challenge);
-    } else {
-        res.sendStatus(403);
-    }
-});
-
-// ২. ইনকামিং মেসেজ হ্যান্ডেল করা
 app.post("/webhook", async (req, res) => {
-    let body = req.body;
+    res.status(200).send("EVENT_RECEIVED");
+    const entries = req.body.entry;
 
-    if (body.object === "page") {
-        res.status(200).send("EVENT_RECEIVED");
+    for (const entry of entries) {
+        const event = entry.messaging[0];
+        const senderId = event.sender.id;
+        const userMsg = event.message?.text;
 
-        body.entry.forEach(async (entry) => {
-            if (entry.messaging && entry.messaging[0]) {
-                let event = entry.messaging[0];
-                let senderId = event.sender.id;
+        if (userMsg) {
+            sendAction(senderId, "typing_on");
 
-                if (event.message && event.message.text) {
-                    const userMsg = event.message.text;
-                    const aiReply = await getGroqResponse(userMsg);
-                    await sendFBMessage(senderId, aiReply);
-                }
+            let aiReply;
+            if (userMsg.toLowerCase().includes("save:")) {
+                const parts = userMsg.replace("save:", "").split(",");
+                await callAppsScript({
+                    action: "saveUser",
+                    name: parts[0]?.trim(),
+                    phone: parts[1]?.trim(),
+                    email: parts[2]?.trim(),
+                    message: parts[3]?.trim()
+                });
+                aiReply = "ধন্যবাদ! আপনার তথ্যটি UserData শিটে সেভ করা হয়েছে।";
+            } else {
+                // FAQ থেকে ডাটা নিয়ে AI রিপ্লাই
+                const faq = await callAppsScript({ action: "readFAQ" });
+                
+                // AI-এর জন্য কনটেক্সট তৈরি (Question, Answer, Links)
+                const faqContext = faq.data.map(item => 
+                    `Q: ${item.Question}\nA: ${item.Answer}\nLink: ${item["Related Links"] || 'N/A'}`
+                ).join("\n\n");
+
+                aiReply = await getGroqResponse(userMsg, faqContext);
             }
-        });
+
+            await sendFBMessage(senderId, aiReply);
+            sendAction(senderId, "typing_off");
+        }
     }
 });
 
-// ৩. Groq API Call (Axios দিয়ে সরাসরি)
-async function getGroqResponse(message) {
-    try {
-        const response = await axios.post(
-            "https://api.groq.com/openai/v1/chat/completions",
-            {
-                model: "Llama-3.1-8b-instant",
-                messages: [
-                    { role: "system", content: "You are a helpful assistant." },
-                    { role: "user", content: message }
-                ]
-            },
-            {
-                headers: {
-                    "Authorization": `Bearer ${GROQ_API_KEY}`,
-                    "Content-Type": "application/json"
-                }
-            }
-        );
-        return response.data.choices[0].message.content;
-    } catch (error) {
-        console.error("Groq Error:", error.response ? error.response.data : error.message);
-        return "সার্ভারে কিছুটা সমস্যা হচ্ছে। দয়া করে কিছুক্ষণ পর আবার চেষ্টা করুন।";
-    }
+// Groq AI Call
+async function getGroqResponse(userMsg, context) {
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+            model: "llama-3.1-8b-instant",
+            messages: [
+                { 
+                    role: "system", 
+                    content: `You are a helpful assistant for CUET students. Use the FAQ data provided. If a relevant link exists for the answer, include it at the end. Answer in Bengali or English naturally.\n\nContext:\n${context}` 
+                },
+                { role: "user", content: userMsg }
+            ]
+        })
+    });
+    const json = await res.json();
+    return json.choices[0].message.content;
 }
 
-// ৪. ফেসবুক মেসেজ পাঠানো
+// Helper: Apps Script Call
+async function callAppsScript(payload) {
+    const res = await fetch(APPS_SCRIPT_URL, {
+        method: "POST",
+        body: JSON.stringify(payload)
+    });
+    return res.json();
+}
+
+// Facebook Send Function
 async function sendFBMessage(senderId, text) {
-    try {
-        await axios.post(`https://graph.facebook.com/v17.0/me/messages?access_token=${PAGE_ACCESS_TOKEN}`, {
-            recipient: { id: senderId },
-            message: { text: text }
-        });
-    } catch (error) {
-        console.error("FB Error:", error.response ? error.response.data : error.message);
-    }
+    await fetch(`https://graph.facebook.com/v17.0/me/messages?access_token=${PAGE_ACCESS_TOKEN}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recipient: { id: senderId }, message: { text } })
+    });
 }
 
-// Render-এর জন্য PORT 10000 বাইন্ডিং জরুরি
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => console.log(`Server is live on port ${PORT}`));
+// Typing action
+async function sendAction(senderId, action) {
+    fetch(`https://graph.facebook.com/v17.0/me/messages?access_token=${PAGE_ACCESS_TOKEN}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recipient: { id: senderId }, sender_action: action })
+    }).catch(() => {});
+}
+
+app.get("/webhook", (req, res) => {
+    if (req.query["hub.verify_token"] === VERIFY_TOKEN) res.send(req.query["hub.challenge"]);
+    else res.sendStatus(403);
+});
+
+app.listen(process.env.PORT || 10000);
