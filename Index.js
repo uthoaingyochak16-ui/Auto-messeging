@@ -81,20 +81,45 @@ app.post("/webhook", async (req, res) => {
 // Groq AI Call
 async function getGroqResponse(userMsg, context) {
     try {
+        // টাইম-আউট কন্ট্রোল করার জন্য (৫ সেকেন্ডের বেশি হলে এরর দেবে না)
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000); 
+
         const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
-            headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" },
+            headers: { 
+                "Authorization": `Bearer ${GROQ_API_KEY}`, 
+                "Content-Type": "application/json" 
+            },
+            signal: controller.signal,
             body: JSON.stringify({
                 model: "llama-3.1-8b-instant",
                 messages: [
-                    { role: "system", content: "You are a CUET Assistant. Answer briefly using provided context.\n" + context },
+                    { 
+                        role: "system", 
+                        content: "You are a Quantum Method Assistant. Use the following context only if relevant. Keep answers short and polite.\n\nContext: " + context 
+                    },
                     { role: "user", content: userMsg }
-                ]
+                ],
+                max_tokens: 500, // রেসপন্স ফাস্ট করার জন্য টোকেন কমানো হলো
+                temperature: 0.5
             })
         });
+
+        clearTimeout(timeout);
         const json = await res.json();
-        return json.choices[0].message.content;
-    } catch (e) { return "সার্ভার কিছুটা ব্যস্ত। পরে চেষ্টা করুন।"; }
+        
+        if (json.choices && json.choices[0]) {
+            return json.choices[0].message.content;
+        } else {
+            throw new Error("Invalid API Response");
+        }
+
+    } catch (e) {
+        console.error("Groq Error:", e.name === 'AbortError' ? "Timeout" : e.message);
+        // ইউজারকে একটু ভালো মেসেজ দেওয়া
+        return "দুঃখিত, আমি এই মুহূর্তে উত্তর দিতে পারছি না। অনুগ্রহ করে কিছুক্ষণ পর আবার প্রশ্ন করুন অথবা আমাদের হটলাইনে যোগাযোগ করুন।";
+    }
 }
 
 // Apps Script Call
